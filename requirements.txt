@@ -1,0 +1,9 @@
+# HyperWise Agent Requirements
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+requests>=2.31.0
+ollama>=0.1.0
+python-dotenv>=1.0.0  # .env 파일 지원
+psutil>=5.9.0  # 선택적: 프로세스 관리용
+
