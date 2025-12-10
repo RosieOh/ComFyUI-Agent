@@ -1,0 +1,89 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# ComfyUI - 절대 커밋하지 마세요! (13GB+)
+ComfyUI/
+ComfyUI/**
+!ComfyUI/.gitignore
+
+# Stable Diffusion WebUI - 절대 커밋하지 마세요! (17GB+)
+stable-diffusion-webui/
+stable-diffusion-webui/**
+!stable-diffusion-webui/.gitignore
+
+# Generated images
+downloads/
+outputs/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+!*.example.png
+
+# Logs
+*.log
+logs/
+!logs/.gitkeep
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Model files (너무 큼)
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.onnx
+
+# Cache
+.cache/
+*.cache
+
