@@ -1,0 +1,110 @@
+{
+  "version": "1.0.0",
+  "nodes": [
+    {
+      "id": "base_loader",
+      "type": "CheckpointLoaderSimple",
+      "position": [50, 50],
+      "inputs": {
+        "ckpt_name": "sdxl-base.safetensors"
+      }
+    },
+    {
+      "id": "latent",
+      "type": "EmptyLatentImage",
+      "position": [50, 220],
+      "inputs": {
+        "width": 1024,
+        "height": 1024,
+        "batch_size": 1
+      }
+    },
+    {
+      "id": "positive",
+      "type": "CLIPTextEncode",
+      "position": [300, 50],
+      "inputs": {
+        "text": "Your prompt here...",
+        "clip": ["base_loader", 1]
+      }
+    },
+    {
+      "id": "negative",
+      "type": "CLIPTextEncode",
+      "position": [300, 150],
+      "inputs": {
+        "text": "blurry, distorted, low quality",
+        "clip": ["base_loader", 1]
+      }
+    },
+    {
+      "id": "sampler_base",
+      "type": "KSampler",
+      "position": [550, 80],
+      "inputs": {
+        "model": ["base_loader", 0],
+        "latent_image": ["latent", 0],
+        "positive": ["positive", 0],
+        "negative": ["negative", 0],
+        "sampler_name": "dpmpp_sde_karras",
+        "scheduler": "karras",
+        "steps": 40,
+        "cfg": 7.5,
+        "seed": 1234,
+        "denoise": 1.0
+      }
+    },
+    {
+      "id": "refiner_loader",
+      "type": "CheckpointLoaderSimple",
+      "position": [50, 420],
+      "inputs": {
+        "ckpt_name": "sdxl-refiner.safetensors"
+      }
+    },
+    {
+      "id": "sampler_refine",
+      "type": "KSampler",
+      "position": [550, 400],
+      "inputs": {
+        "model": ["refiner_loader", 0],
+        "latent_image": ["sampler_base", 0],
+        "positive": ["positive", 0],
+        "negative": ["negative", 0],
+        "sampler_name": "dpmpp_sde_karras",
+        "scheduler": "karras",
+        "steps": 20,
+        "cfg": 8.0,
+        "seed": 1234,
+        "denoise": 0.35
+      }
+    },
+    {
+      "id": "decode",
+      "type": "VAEDecode",
+      "position": [850, 400],
+      "inputs": {
+        "samples": ["sampler_refine", 0],
+        "vae": ["refiner_loader", 2]
+      }
+    },
+    {
+      "id": "upscale",
+      "type": "ESRGANUpscale",
+      "position": [1100, 400],
+      "inputs": {
+        "image": ["decode", 0],
+        "scale": 2
+      }
+    },
+    {
+      "id": "save",
+      "type": "SaveImage",
+      "position": [1350, 400],
+      "inputs": {
+        "images": ["upscale", 0],
+        "filename_prefix": "hyperwise"
+      }
+    }
+  ]
+}
