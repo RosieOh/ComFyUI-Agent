@@ -95,6 +95,7 @@ class ServiceManager:
         # 프로세스 관리
         self.comfyui_process: Optional[subprocess.Popen] = None
         self.webui_process: Optional[subprocess.Popen] = None
+        self.ollama_process: Optional[subprocess.Popen] = None
         
         # 헬스체크
         self.health_check_thread: Optional[Thread] = None
@@ -167,6 +168,11 @@ class ServiceManager:
             return False
         
         try:
+            # 이미 포트가 사용 중인지 확인 (다른 프로세스가 실행 중일 수 있음)
+            if self._check_service_health(f"http://127.0.0.1:{self.comfyui_port}"):
+                logger.info(f"ComfyUI가 이미 외부에서 실행 중입니다 (포트: {self.comfyui_port})")
+                return True
+
             logger.info(f"ComfyUI 시작 중... (포트: {self.comfyui_port})")
             
             # ComfyUI 시작 (백그라운드)
@@ -244,6 +250,11 @@ class ServiceManager:
             return False
         
         try:
+            # 이미 포트가 사용 중인지 확인
+            if self._check_service_health(f"http://127.0.0.1:{self.webui_port}"):
+                logger.info(f"WebUI가 이미 외부에서 실행 중입니다 (포트: {self.webui_port})")
+                return True
+
             logger.info(f"Stable Diffusion WebUI 시작 중... (포트: {self.webui_port})")
             
             # WebUI 시작 (백그라운드, API만 모드)
@@ -298,6 +309,69 @@ class ServiceManager:
         except Exception as e:
             logger.error(f"WebUI 시작 중 오류 발생: {e}")
             return False
+    
+    def start_ollama(self) -> bool:
+        """Ollama 서버 시작"""
+        if self.ollama_process and self.ollama_process.poll() is None:
+            logger.info("Ollama가 이미 실행 중입니다")
+            return True
+        
+        # 이미 포트가 사용 중인지 확인 (다른 프로세스가 실행 중일 수 있음)
+        if self._check_service_health("http://127.0.0.1:11434"):
+            logger.info("Ollama가 이미 외부에서 실행 중입니다 (포트: 11434)")
+            return True
+            
+        # ollama 명령어 확인
+        import shutil
+        if not shutil.which("ollama"):
+            logger.error("ollama 명령어를 찾을 수 없습니다. Ollama가 설치되어 있는지 확인하세요.")
+            return False
+
+        try:
+            logger.info("Ollama 시작 중... (포트: 11434)")
+            
+            # 로그 파일 경로 설정
+            log_dir = self.project_root / "logs"
+            log_dir.mkdir(exist_ok=True)
+            ollama_log = log_dir / "ollama.log"
+            
+            env = os.environ.copy()
+            # macOS에서 필요한 경우 호스트 설정
+            env["OLLAMA_HOST"] = "127.0.0.1:11434"
+            
+            # stdout/stderr를 파일로 리다이렉트
+            log_file = open(ollama_log, "a")
+            self.ollama_process = subprocess.Popen(
+                ["ollama", "serve"],
+                env=env,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                start_new_session=True
+            )
+            
+            # 서버가 시작될 때까지 대기
+            max_wait = 30  # Ollama는 꽤 빠름
+            wait_time = 0
+            while wait_time < max_wait:
+                if self._check_service_health("http://127.0.0.1:11434"):
+                    logger.info("✅ Ollama가 성공적으로 시작되었습니다 (포트: 11434)")
+                    return True
+                
+                if self.ollama_process.poll() is not None:
+                     # 프로세스가 종료됨
+                    logger.error("Ollama 시작 실패. logs/ollama.log를 확인하세요.")
+                    return False
+                
+                time.sleep(1)
+                wait_time += 1
+            
+            logger.warning("Ollama 시작 확인 시간 초과 (포트: 11434)")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Ollama 시작 중 오류 발생: {e}")
+            return False
+
     
     def stop_comfyui(self):
         """ComfyUI 서버 중지"""
@@ -384,12 +458,44 @@ class ServiceManager:
                 logger.error(f"WebUI 중지 중 오류: {e}")
             finally:
                 self.webui_process = None
+
+    def stop_ollama(self):
+        """Ollama 서버 중지"""
+        if self.ollama_process:
+            try:
+                if self.ollama_process.poll() is None:
+                    # 프로세스가 실행 중
+                    if sys.platform == 'win32':
+                        self.ollama_process.terminate()
+                    else:
+                        try:
+                            # os.killpg(os.getpgid(self.ollama_process.pid), signal.SIGTERM)
+                            # Ollama는 서브프로세스를 많이 만들어서 SIGTERM만으로는 안 죽을 수 있음
+                             self.ollama_process.terminate()
+                        except:
+                            self.ollama_process.terminate()
+                    
+                    try:
+                        self.ollama_process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        logger.warning("Ollama 강제 종료 중...")
+                        self.ollama_process.kill()
+                        self.ollama_process.wait()
+                    
+                    logger.info("Ollama가 중지되었습니다")
+                else:
+                    logger.debug("Ollama 프로세스가 이미 종료되었습니다")
+            except Exception as e:
+                logger.error(f"Ollama 중지 중 오류: {e}")
+            finally:
+                self.ollama_process = None
     
     def start_all(self) -> Dict[str, bool]:
         """모든 서비스 시작"""
         results = {
             "comfyui": self.start_comfyui(),
-            "webui": False  # WebUI는 선택사항
+            "webui": False,  # WebUI는 선택사항
+            "ollama": self.start_ollama()
         }
         
         # WebUI 시작 시도 (실패해도 계속 진행)
@@ -405,6 +511,7 @@ class ServiceManager:
         """모든 서비스 중지"""
         self.stop_comfyui()
         self.stop_webui()
+        self.stop_ollama()
     
     def get_status(self) -> Dict[str, any]:
         """서비스 상태 조회"""
@@ -422,14 +529,19 @@ class ServiceManager:
         
         return {
             "comfyui": {
-                "running": comfyui_running,
+                "running": comfyui_running or self._check_service_health(f"http://127.0.0.1:{self.comfyui_port}"),
                 "port": self.comfyui_port,
                 "url": f"http://127.0.0.1:{self.comfyui_port}"
             },
             "webui": {
-                "running": webui_running,
+                "running": webui_running or self._check_service_health(f"http://127.0.0.1:{self.webui_port}"),
                 "port": self.webui_port,
                 "url": f"http://127.0.0.1:{self.webui_port}"
+            },
+            "ollama": {
+                "running": self._check_service_health("http://127.0.0.1:11434"),
+                "port": 11434,
+                "url": "http://127.0.0.1:11434"
             }
         }
     
@@ -475,6 +587,14 @@ class ServiceManager:
                     elif self.webui_process is None:
                         # 프로세스가 없음 - 시작 (WebUI는 선택사항이므로 경고만)
                         logger.debug("WebUI가 실행되지 않았습니다.")
+                
+                # Ollama 자동 재시작 (프로세스를 우리가 관리하는 경우만)
+                if self.ollama_process and not self._check_service_health("http://127.0.0.1:11434") and self.auto_start:
+                    if self.ollama_process.poll() is None:
+                         logger.warning("Ollama가 응답하지 않습니다. 재시작 시도...")
+                         self.stop_ollama()
+                         time.sleep(1)
+                         self.start_ollama()
                 
             except Exception as e:
                 logger.error(f"헬스체크 중 오류: {e}")
