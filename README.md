@@ -1,4 +1,4 @@
-# HyperWise Agent
+# ComFyUI Agent
 
 ComfyUI와 Stable Diffusion WebUI를 자동으로 관리하고 통합하는 에이전트 시스템입니다.
 
