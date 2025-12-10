@@ -18,7 +18,7 @@ MODES = {
         "height": 832,
         "steps": 28,
         "cfg": 6.5,
-        "sampler": "dpmpp_sde_karras",
+        "sampler": "dpmpp_sde",
         "refiner_steps": 10,
         "upscale": False
     },
@@ -27,7 +27,7 @@ MODES = {
         "height": 1024,
         "steps": 40,
         "cfg": 7.5,
-        "sampler": "dpmpp_sde_karras",
+        "sampler": "dpmpp_sde",
         "refiner_steps": 15,
         "upscale": False
     },
@@ -36,9 +36,9 @@ MODES = {
         "height": 1024,
         "steps": 50,
         "cfg": 8.0,
-        "sampler": "dpmpp_sde_karras",
+        "sampler": "dpmpp_sde",
         "refiner_steps": 20,
-        "upscale": True
+        "upscale": False
     }
 }
 
@@ -146,7 +146,7 @@ class ImageGenerationService:
     
     def _wait_for_images(self, prompt_id: str) -> List[str]:
         """이미지 생성 완료 대기"""
-        max_wait = 300  # 최대 5분 대기
+        max_wait = 600  # 최대 10분 대기
         wait_time = 0
         
         while wait_time < max_wait:
@@ -266,17 +266,17 @@ class ImageGenerationService:
                     "class_type": "VAEDecode",
                     "inputs": {"samples": ["sampler_base", 0], "vae": ["base_model", 2]}
                 },
-                "upscale": {
-                    "class_type": "ESRGANUpscale",
-                    "inputs": {
-                        "image": ["decode", 0],
-                        "scale": 2
-                    }
-                } if cfg["upscale"] else None,
+                # "upscale": {
+                #     "class_type": "ESRGANUpscale",
+                #     "inputs": {
+                #         "image": ["decode", 0],
+                #         "scale": 2
+                #     }
+                # } if cfg["upscale"] else None,
                 "save": {
                     "class_type": "SaveImage",
                     "inputs": {
-                        "images": ["upscale", 0] if cfg["upscale"] else ["decode", 0],
+                        "images": ["decode", 0],
                         "filename_prefix": prefix
                     }
                 }
